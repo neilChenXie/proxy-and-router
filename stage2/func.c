@@ -28,14 +28,12 @@ int stage_line(char *sp) {
 	//char *sh;
 
 	if (strstr(sp,comm) != NULL) {
-		printf("comment_line: %s\n", sp);
 		return 0;
 	} else {
 		if (strstr(sp, stage) != NULL) {
 			/*get stage num*/
 			startp = strchr(sp, ' ');
 			startp++;//point to the num
-			printf("stage_line: %s\n", startp);
 			return atoi(startp);
 		}
 		return -1;
@@ -50,14 +48,12 @@ int router_line(char *sp) {
 	//char *sh;
 
 	if (strstr(sp,comm) != NULL) {
-		printf("comment_line: %s\n", sp);
 		return 0;
 	} else {
 		if (strstr(sp, routnum) != NULL) {
 			/*get stage num*/
 			startp = strchr(sp, ' ');
 			startp++;//point to the num
-			printf("router_line: %s\n", startp);
 			return atoi(startp);
 		}
 		return -1;
@@ -93,6 +89,24 @@ int read_config(FILE *fp) {
 	//printf("num_router %d\n", num_router);
 	return 0;
 }
+/*write to file*/
+/*
+ *return 0 for sucess
+ * */
+int write_file(char *filename, char *buffer) {
+	FILE *fp;
+	if((fp = fopen(filename, "r+"))==NULL) {
+		fprintf(stderr,"Cannot open proxy log file\n");
+		exit(1);
+	} else {
+		if(fseek(fp, 0L, SEEK_END) == -1) {
+			printf("fseek doesn\'t work");
+		}
+		fputs(buffer, fp);
+		fclose(fp);
+	}
+	return 0;
+}
 /*************************************/
 
 /**************get addrinfo***********/
@@ -112,6 +126,7 @@ unsigned short get_port(struct sockaddr *sa)
 	if(sa->sa_family == AF_INET) {
 		return ntohs(((struct sockaddr_in*)sa)->sin_port);
 	}
+	return ntohs(((struct sockaddr_in6*)sa)->sin6_port);
 }
 /*****************************************************************/
 
@@ -179,7 +194,7 @@ int create_proxy() {
 /*
  * return 0 for success, 2 for error
  */
-int create_router(int num) {
+int create_router() {
 	struct addrinfo hints, *routinfo, *res;
 	struct sockaddr res_addr;
 	//struct sockaddr_in *res_out_addr;
@@ -292,15 +307,16 @@ int router_udp_reader(char *buffer) {
 /*router UDP sender*/
 int router_udp_sender(char *sendmsg) {
 	struct addrinfo hints, *servinfo, *res;
-	struct sockaddr res_addr;
+	//struct sockaddr res_addr;
 	//struct sockaddr_in *res_out_addr;
-	socklen_t addrlen;
+	//socklen_t addrlen;
 	int sendsocket;
 	int numbytesent;
 	int rv;
 	/*change int portnum to char*/
 	char proxyport[PORTLEN];
 	sprintf(proxyport,"%d",proxy_port);
+	printf("router: I will send to port: %s\n", proxyport);
 
 	/*set hints for getaddrinfo()*/
 	memset(&hints, 0, sizeof hints);
@@ -317,7 +333,12 @@ int router_udp_sender(char *sendmsg) {
 		sendsocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sendsocket == -1) {
 			perror("router:sendsocket");
+			continue;
 		}
+		break;
+	}
+	if (res == NULL) {
+		fprintf(stderr, "router:failed to bind socket\n");
 	}
 	/*send infomation*/
 	numbytesent = sendto(sendsocket, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
@@ -331,9 +352,9 @@ int router_udp_sender(char *sendmsg) {
 /*proxy UDP sender*/
 int proxy_udp_sender(int num, char *sendmsg) {
 	struct addrinfo hints, *routinfo, *res;
-	struct sockaddr res_addr;
+	//struct sockaddr res_addr;
 	//struct sockaddr_in *res_out_addr;
-	socklen_t addrlen;
+	//socklen_t addrlen;
 	int sendsocket;
 	int numbytesent;
 	int rv;
@@ -356,7 +377,9 @@ int proxy_udp_sender(int num, char *sendmsg) {
 		sendsocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sendsocket == -1) {
 			perror("proxy:sendsocket");
+			continue;
 		}
+		break;
 	}
 	/*send infomation*/
 	numbytesent = sendto(sendsocket, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
