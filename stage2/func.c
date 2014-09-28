@@ -11,6 +11,8 @@
 #include <netdb.h>
 #include "func.h"
 
+int num_stage = 0;
+int num_router = 0;
 int proxy_sockfd;
 int proxy_port;
 int router_sockfd;
@@ -18,6 +20,7 @@ int router_port;
 int rec_router_port[MAXROUTER];
 
 /***************read file functons*************/
+/*return the num of stage*/
 int stage_line(char *sp) {
 	char *comm = "#";
 	char *stage = "stage";
@@ -39,6 +42,7 @@ int stage_line(char *sp) {
 	}
 }
 
+/*return the num of router*/
 int router_line(char *sp) {
 	char *comm = "#";
 	char *routnum = "num_routers";
@@ -59,8 +63,40 @@ int router_line(char *sp) {
 		return -1;
 	}
 }
+/*read config*/
+int read_config(FILE *fp) {
+	char line[LINELEN];
+	int rv;
+	if (fp == NULL) {
+		return -1;
+	}
+	while(fgets(line, sizeof(line), fp) != NULL &&(num_stage == 0 || num_router == 0)) {
+		if (num_stage == 0) {
+			rv = stage_line(line);
+			if(rv > 0) {
+				num_stage = rv;
+			}
+			continue;
+		} else {
+			/*num of routers*/
+			rv = router_line(line);
+			if(rv > 0) {
+				num_router = rv;
+			}
+			continue;
+		}
+	}
+	if(num_stage == 0 || num_router == 0) {
+		return -1;
+	}
+	//printf("stage %d\n", num_stage);
+	//printf("num_router %d\n", num_router);
+	return 0;
+}
 /*************************************/
+
 /**************get addrinfo***********/
+/*return base on IPv4/IPv6 judgement*/
 void *get_in_addr(struct sockaddr *sa)
 {
 	if (sa->sa_family == AF_INET) {
@@ -70,6 +106,7 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+/*get port num*/
 unsigned short get_port(struct sockaddr *sa) 
 {
 	if(sa->sa_family == AF_INET) {
@@ -77,12 +114,17 @@ unsigned short get_port(struct sockaddr *sa)
 	}
 }
 /*****************************************************************/
+
 /***********************create functions***************************/
+/*create a socket for proxy to listen*/
+/*
+ * return 0 for success, 2 for error
+ */
 int create_proxy() {
 	/*getaddrinfo*/
 	struct addrinfo hints, *servinfo, *res;
 	struct sockaddr res_addr;
-	struct sockaddr_in *res_out_addr;
+	//struct sockaddr_in *res_out_addr;
 	socklen_t addrlen;
 	int rv;
 
@@ -119,8 +161,9 @@ int create_proxy() {
 			perror("proxy:getsockname");
 			continue;
 		}
-		res_out_addr = (struct sockaddr_in*)&res_addr;
-		proxy_port = ntohs(res_out_addr->sin_port);
+		//res_out_addr = (struct sockaddr_in*)&res_addr;
+		//proxy_port = ntohs(res_out_addr->sin_port);
+		proxy_port = get_port(&res_addr);
 		break;
 	}
 	/*release mem*/
@@ -133,10 +176,13 @@ int create_proxy() {
 	return 0;
 }
 /*******************create router*****************/
+/*
+ * return 0 for success, 2 for error
+ */
 int create_router(int num) {
 	struct addrinfo hints, *routinfo, *res;
 	struct sockaddr res_addr;
-	struct sockaddr_in *res_out_addr;
+	//struct sockaddr_in *res_out_addr;
 	socklen_t addrlen;
 	int rv;
 
@@ -168,8 +214,9 @@ int create_router(int num) {
 			perror("router:getsockname");
 			continue;
 		}
-		res_out_addr = (struct sockaddr_in*)&res_addr;
-		router_port = ntohs(res_out_addr->sin_port);
+		//res_out_addr = (struct sockaddr_in*)&res_addr;
+		//router_port = ntohs(res_out_addr->sin_port);
+		router_port = get_port(&res_addr);
 		break;
 	}
 	/*release mem*/
@@ -181,10 +228,10 @@ int create_router(int num) {
 	}
 	return 0;
 }
-/*******************************************************************************/
+/********************************************************************/
 
-/**************************communication functions******************************/
-/*proxy UDP wait*/
+/*********************communication functions************************/
+/*proxy UDP reader*/
 int proxy_udp_reader(char *buffer, int count) {
 	int numbytes;
 	struct sockaddr_storage their_addr;
@@ -195,7 +242,9 @@ int proxy_udp_reader(char *buffer, int count) {
 	printf("\nproxy: waiting to recvfrom....\n");
 
 	addr_len = sizeof their_addr;
+
 	numbytes = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+
 	if(numbytes != -1) {
 		printf("proxy: got packet from %s\n",
 				inet_ntop(their_addr.ss_family,
@@ -205,12 +254,13 @@ int proxy_udp_reader(char *buffer, int count) {
 		buffer[numbytes] = '\0';
 		/*get information of router*/
 		rec_router_port[count] = get_port((struct sockaddr *)&their_addr);
-		return 0;
 	}
+
 	if (numbytes == -1) {
 		perror("recvfrom");
 		exit(1);
 	}
+	return 0;
 }
 /*router UDP reader*/
 int router_udp_reader(char *buffer) {
@@ -218,10 +268,13 @@ int router_udp_reader(char *buffer) {
 	struct sockaddr_storage their_addr;
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
+	
 	printf("\nrouter: waiting to recvfrom....\n");
+
 	addr_len = sizeof their_addr;
 
 	numbytes = recvfrom(router_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+	
 	if(numbytes != -1) {
 		printf("router: got packet from %s\n",
 				inet_ntop(their_addr.ss_family,
@@ -234,16 +287,18 @@ int router_udp_reader(char *buffer) {
 		perror("recvform");
 		exit(1);
 	}
+	return 0;
 }
 /*router UDP sender*/
 int router_udp_sender(char *sendmsg) {
 	struct addrinfo hints, *servinfo, *res;
 	struct sockaddr res_addr;
-	struct sockaddr_in *res_out_addr;
+	//struct sockaddr_in *res_out_addr;
 	socklen_t addrlen;
 	int sendsocket;
 	int numbytesent;
 	int rv;
+	/*change int portnum to char*/
 	char proxyport[PORTLEN];
 	sprintf(proxyport,"%d",proxy_port);
 
@@ -252,6 +307,7 @@ int router_udp_sender(char *sendmsg) {
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags = AI_PASSIVE;
+	/*get proxy info*/
 	if((rv = getaddrinfo(NULL, proxyport, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo:%s\n", gai_strerror(rv));
 		return 1;
@@ -272,4 +328,43 @@ int router_udp_sender(char *sendmsg) {
 	freeaddrinfo(servinfo);
 	return 0;
 }
-/*******************************************************************************/
+/*proxy UDP sender*/
+int proxy_udp_sender(int num, char *sendmsg) {
+	struct addrinfo hints, *routinfo, *res;
+	struct sockaddr res_addr;
+	//struct sockaddr_in *res_out_addr;
+	socklen_t addrlen;
+	int sendsocket;
+	int numbytesent;
+	int rv;
+	/*change int portnum to char*/
+	char routport[PORTLEN];
+	sprintf(routport,"%d",rec_router_port[num]);
+
+	/*set hints for getaddrinfo()*/
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+	/*get router info*/
+	if((rv = getaddrinfo(NULL, routport, &hints, &routinfo)) != 0) {
+		fprintf(stderr, "getaddrinfo:%s\n", gai_strerror(rv));
+		return 1;
+	}
+	/*create sendsocket*/
+	for (res = routinfo; res != NULL; res = res->ai_next) {
+		sendsocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sendsocket == -1) {
+			perror("proxy:sendsocket");
+		}
+	}
+	/*send infomation*/
+	numbytesent = sendto(sendsocket, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
+	if (numbytesent == -1) {
+		perror("proxy:sendto");
+		exit(1);
+	}
+	freeaddrinfo(routinfo);
+	return 0;
+}
+/********************************************************************/

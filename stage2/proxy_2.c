@@ -16,14 +16,12 @@ v0.1
 #include <netdb.h>
 #include "func.h"
 
-int num_stage = 0;
-int num_router = 0;
 
 int main(int argc, char *argv[])
 {
 	FILE *fp=NULL, *proxyfp=NULL, *routfp=NULL;
-	char line[LINELEN];
 	char recline[LINELEN];
+	char filename[FNAMELEN];
 	int rv;
 	int count = 0;//multi routers
 	int fpid;//fork process
@@ -33,35 +31,20 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"usage:second arguement is file name\n");
 		return -1;
 	}
+	/*****************/
 
 	/*read config file*/
 	fp = fopen(argv[1], "r");
-	if (fp == NULL) {
-		fprintf(stderr, "Cannot open %s\n", argv[1]);
+	if(fp == NULL) {
+		fprintf(stderr,"Cannot open file: %s",argv[1]);
+		return -1;
 	}
-	while(fgets(line, sizeof(line), fp) != NULL &&(num_stage == 0 || num_router == 0)) {
-		if (num_stage == 0) {
-			rv = stage_line(line);
-			if(rv > 0) {
-				num_stage = rv;
-			}
-			continue;
-		} else {
-			/*num of routers*/
-			rv = router_line(line);
-			if(rv > 0) {
-				num_router = rv;
-			}
-			continue;
-		}
-	}
-	printf("stage %d\n", num_stage);
-	printf("num_router %d\n", num_router);
+	read_config(fp);
 	fclose(fp);
 	/******************/
 
 	/*create proxy log*/
-	//strcpy(filename, "stage1.proxy.out");
+	sprintf(filename, "stage%d.proxy.out",num_stage);
 	//if((proxyfp = fopen(filename, "w+"))==NULL) {
 	//	fprintf(stderr, "Cannot open/create proxy log file\n");
 	//	exit(1);

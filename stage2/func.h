@@ -14,6 +14,7 @@ extern int num_router;
 
 int stage_line(char *sp);
 int router_line(char *sp);
+int read_config(FILE *fp);
 void *get_in_addr(struct sockaddr *sa);
 unsigned short get_port(struct sockaddr *sa);
 int create_proxy(); 
