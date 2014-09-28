@@ -122,6 +122,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "proxy:failed to bind socket\n");
 		return 2;
 	}
+	/********************************/
+
 	/*create proxy log*/
 	strcpy(filename, "stage1.proxy.out");
 	if((proxyfp = fopen(filename, "w+"))==NULL) {
@@ -137,7 +139,7 @@ int main(int argc, char *argv[])
 	}
 	/***********************************/
 
-	//freeaddrinfo(servinfo);
+	freeaddrinfo(servinfo);
 	/*fork router process*/
 	while(count < numrout) {
 		fpid = fork();
@@ -208,7 +210,7 @@ int main(int argc, char *argv[])
 				perror("router:sendto");
 				exit(1);
 			}
-			freeaddrinfo(servinfo);
+			freeaddrinfo(routinfo);
 
 			printf("router: sent %d bytes\n", numbytesent);
 			/*print own port num*/
