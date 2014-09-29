@@ -127,11 +127,17 @@ int main(int argc, char *argv[])
 	}
 	/*for stage 2 of proxy*/
 	char stage2buf[MAXBUFLEN];
-	tunnel_reader(stage2buf);
-	sprintf(filename, "stage%d.proxy.out",num_stage);
-	if(write_file(filename, stage2buf) != 0) {
-		fprintf(stderr, "proxy: cannot write to file");
+	if(tunnel_create() != 0) {
+		fprintf(stderr, "proxy:cannot connect to tunnel");
 		exit(1);
+	}
+	while(1) {
+		tunnel_reader(stage2buf);
+		sprintf(filename, "stage%d.proxy.out",num_stage);
+		if(write_file(filename, stage2buf) != 0) {
+			fprintf(stderr, "proxy: cannot write to file");
+			exit(1);
+		}
 	}
 	/**********************/
 	return 0;

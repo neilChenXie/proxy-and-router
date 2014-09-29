@@ -1,0 +1,4 @@
+stage1
+proxy port:36622
+router: 1, pid 5027, port: 59512
+123

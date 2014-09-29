@@ -5,15 +5,17 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <linux/if_tun.h>
-#include <sys/ioctl.h>
 #include <net/if.h>
 #include <fcntl.h>
 #include "func.h"
-
+int tun_fd = -1;
 int num_stage = 0;
 int num_router = 0;
 int proxy_sockfd;
@@ -430,23 +432,46 @@ int tun_alloc(char *dev, int flags)
     strcpy(dev, ifr.ifr_name);
     return fd;
 }
-/*tunnel_reader*/
-int tunnel_reader(char *buffer)
-{
+/************************tunnel_create****************************/
+int tunnel_create() {
     char tun_name[IFNAMSIZ];
-    //char buffer[2048];
-
-    /* Connect to the tunnel interface (make sure you create the tunnel interface first) */
     strcpy(tun_name, "tun1");
-    int tun_fd = tun_alloc(tun_name, IFF_TUN | IFF_NO_PI); 
+    tun_fd = tun_alloc(tun_name, IFF_TUN | IFF_NO_PI); 
 
     if(tun_fd < 0)
     {
 	perror("Open tunnel interface");
 	exit(1);
     }
+	return 0;
+}
+/************************tunnel_reader************************/
+/*
+ * return value for UDP or tunnel
+ * */
+int tunnel_reader(char *buffer)
+{
+//    char tun_name[IFNAMSIZ];
+    //char buffer[2048];
 
+    /* Connect to the tunnel interface (make sure you create the tunnel interface first) */
+//	strcpy(tun_name, "tun1");
+//	int tun_fd = tun_alloc(tun_name, IFF_TUN | IFF_NO_PI); 
+//
+//	if(tun_fd < 0)
+//	{
+//		perror("Open tunnel interface");
+//		exit(1);
+//	}
+	/******test field for select()***********/
+	//int ret,i;
+	//fd_set readfd;
+	//struct timeval timeout;
 
+	//FD_ZERO(&readfd);//reset a fd_set
+	//timeout.tv_sec = 1;
+	//timeout.tv_usec = 0;
+	/***************************************/
     /*
      * This loop reads packets from the tunnle interface.
      *
@@ -481,5 +506,20 @@ int tunnel_reader(char *buffer)
 	    
 //	}
     }
+	int numbytes;
+	struct sockaddr_storage their_addr;
+	socklen_t addr_len;
+	//char buf[MAXBUFLEN];
+	char s[INET6_ADDRSTRLEN];
+	numbytes = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+
+	if(numbytes != -1) {
+		printf("proxy: got packet from %s\n",
+				inet_ntop(their_addr.ss_family,
+					get_in_addr((struct sockaddr *)&their_addr),
+					s, sizeof s));
+		printf("proxy: packet is %d bytes long\n", numbytes);
+		buffer[numbytes] = '\0';
+	}
 	return 0;
 }

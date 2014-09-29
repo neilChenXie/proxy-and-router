@@ -12,6 +12,7 @@ extern int router_port;
 extern int rec_router_port[MAXROUTER];
 extern int num_stage;
 extern int num_router;
+extern int tun_fd;
 
 int stage_line(char *sp);
 int router_line(char *sp);
@@ -26,4 +27,5 @@ int router_udp_reader(char *buffer);
 int router_udp_sender(char *sendmsg);
 int proxy_udp_sender(int num, char *sendmsg);
 int tun_alloc(char *dev, int flags); 
+int tunnel_create();
 int tunnel_reader(char *buffer);
