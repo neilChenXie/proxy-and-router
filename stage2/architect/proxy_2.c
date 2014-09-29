@@ -14,6 +14,10 @@ v0.1
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <linux/if_tun.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <fcntl.h>
 #include "func.h"
 
 
@@ -81,7 +85,7 @@ int main(int argc, char *argv[])
 			}
 			printf("proxy receive:%s\n", buffer);
 			/*record*/
-			strcpy(filename, "stage1.proxy.out");
+			sprintf(filename, "stage%d.proxy.out", num_stage);
 			sprintf(recline, "router: %d, pid %s, port: %d\n", count+1, buffer, rec_router_port[count]);
 			if(write_file(filename, recline) != 0) {
 				fprintf(stderr, "Cannot write to file: %s\n", filename);
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
 			router_udp_sender(sendmsg);
 			/*recorde*/
 			/*create router log file*/
-			sprintf(filename, "stage1.router%d.out",count+1);
+			sprintf(filename, "stage%d.router%d.out", num_stage,count+1);
 			if((routfp = fopen(filename, "w+"))==NULL) {
 				fprintf(stderr, "Cannot open/create proxy log file\n");
 				exit(1);
@@ -122,7 +126,13 @@ int main(int argc, char *argv[])
 		count++;
 	}
 	/*for stage 2 of proxy*/
-	
+	char stage2buf[MAXBUFLEN];
+	tunnel_reader(stage2buf);
+	sprintf(filename, "stage%d.proxy.out",num_stage);
+	if(write_file(filename, stage2buf) != 0) {
+		fprintf(stderr, "proxy: cannot write to file");
+		exit(1);
+	}
 	/**********************/
 	return 0;
 }
