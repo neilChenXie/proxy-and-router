@@ -5,13 +5,16 @@
 #define FNAMELEN 20
 #define MAXROUTER 10
 #define MAXMSGLEN 100
-extern int proxy_sockfd;
-extern int proxy_port;
-extern int router_sockfd;
-extern int router_port;
-extern int rec_router_port[MAXROUTER];
+/*config*/
 extern int num_stage;
 extern int num_router;
+/*router*/
+extern int router_sockfd;
+extern int router_port;
+/*proxy*/
+extern int proxy_sockfd;
+extern int proxy_port;
+extern int rec_router_port[MAXROUTER];
 extern int tun_fd;
 
 int stage_line(char *sp);
