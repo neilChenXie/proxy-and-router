@@ -18,10 +18,10 @@
 int tun_fd = -1;
 int num_stage = 0;
 int num_router = 0;
-int proxy_sockfd;
-int proxy_port;
-int router_sockfd;
-int router_port;
+int proxy_sockfd=0; 
+int proxy_port=0;
+int router_sockfd=0;
+int router_port=0;
 int rec_router_port[MAXROUTER];
 
 /***************read file functons*************/
@@ -294,6 +294,7 @@ int router_udp_reader(char *buffer) {
 	printf("\nrouter: waiting to recvfrom....\n");
 
 	addr_len = sizeof their_addr;
+	printf("router: router_socket:%d\n",router_sockfd);
 
 	numbytes = recvfrom(router_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
 	
@@ -361,6 +362,44 @@ int router_udp_sender(char *sendmsg) {
 		perror("router:getsockname");
 	}
 	router_port = get_port(&res_addr);
+	freeaddrinfo(servinfo);
+	return 0;
+}
+/**2***/
+int router_udp_sender2(char *sendmsg) {
+	struct addrinfo hints, *servinfo, *res;
+	//struct sockaddr res_addr;
+	//struct sockaddr_in *res_out_addr;
+	//socklen_t addrlen;
+	//int sendsocket;
+	int numbytesent;
+	int rv;
+	/*change int portnum to char*/
+	char proxyport[PORTLEN];
+	sprintf(proxyport,"%d",proxy_port);
+	printf("router: I will send to port: %s\n", proxyport);
+
+	/*set hints for getaddrinfo()*/
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+	/*get proxy info*/
+	if((rv = getaddrinfo(NULL, proxyport, &hints, &servinfo)) != 0) {
+		fprintf(stderr, "getaddrinfo:%s\n", gai_strerror(rv));
+		return 1;
+	}
+	/*create send socket*/
+	res = servinfo;
+	if (res == NULL) {
+		fprintf(stderr, "router:failed to bind socket\n");
+		return -1;
+	}
+	numbytesent = sendto(router_sockfd, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
+	if (numbytesent == -1) {
+		perror("router:sendto");
+		exit(1);
+	}
 	freeaddrinfo(servinfo);
 	return 0;
 }
@@ -483,7 +522,6 @@ int tunnel_reader(char *buffer)
 	//char buf[MAXBUFLEN];
 	char s[INET6_ADDRSTRLEN];
 
-	do {
 		FD_ZERO(&readfd);//reset a fd_set
 		FD_SET(proxy_sockfd, &readfd);
 		FD_SET(tun_fd, &readfd);
@@ -499,7 +537,6 @@ int tunnel_reader(char *buffer)
 		/*proxy wait from tunnel or router*/
 		printf("\nproxy: wait for traffic\n");
 		select(maxfd+1, &readfd, NULL, NULL, NULL);//never timeout
-		printf("proxy:here\n");
 
 		if(FD_ISSET(proxy_sockfd, &readfd)) {
 			/*read from udp socket*/
@@ -513,8 +550,10 @@ int tunnel_reader(char *buffer)
 				printf("proxy: packet is %d bytes long\n", nread);
 				buffer[nread] = '\n';
 				buffer[nread+1] = '\0';
-				return 2;
+			} else {
+				printf("proxy:cannot get msg from router");
 			}
+			return 2;
 		} 
 		if(FD_ISSET(tun_fd, &readfd)) {
 			/*read from tunnel*/
@@ -533,7 +572,16 @@ int tunnel_reader(char *buffer)
 				return 3;
 			}
 		}
-	}while(1);
 	/***************************************/
+	return 0;
+}
+/*write to tunnel*/
+int tunnel_write(char *buf) {
+	int nread = write(tun_fd,buf,sizeof(buf));
+	if (nread == -1) {
+		perror("cannot write to tunnel\n");
+		close(tun_fd);
+		exit(1);
+	}
 	return 0;
 }

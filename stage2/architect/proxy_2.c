@@ -124,28 +124,19 @@ int main(int argc, char *argv[])
 			fclose(routfp);
 			/**************************/
 			/*for stage 2 of router*/
+			char routbuf[MAXBUFLEN];
 			while(1) {
-				char routbuf[MAXBUFLEN];
-			//	struct iphdr *ip_reply;
-				/*wait ICMP msg from proxy*/
-				if (router_udp_reader(routbuf) != 0) {
-					fprintf(stderr, "router: cannot receive msg from proxy\n");
-					exit(1);
-				}
-				/*get info in ICMP*/
-				/*write to file*/
+			////	struct iphdr *ip_reply;
+			//	/*wait ICMP msg from proxy*/
+				router_udp_reader(routbuf);
+			//	/*get info in ICMP*/
+			//	/*write to file*/
 				sprintf(recline, "ICMP from port:%d, src:, dst:, type:\n", router_port);
-				if(write_file(filename, recline) != 0) {
-					//filename initialized when create log file
-					fprintf(stderr, "router:cannot write log file\n");
-					exit(1);
-				}
-				/*write a reply to proxy*/
+				write_file(filename, recline);
+			//	/*write a reply to proxy*/
 				sprintf(sendmsg, "ICMP reply\n");
-				if(router_udp_sender(sendmsg) != 0) {
-					fprintf(stderr, "router: cannot send ICMP reply msg to proxy\n");
-					exit(1);
-				}
+				router_udp_sender2(sendmsg);
+			//	printf("router: router is working\n");
 			}
 			/***********************/
 			exit(0);
@@ -167,6 +158,10 @@ int main(int argc, char *argv[])
 			sprintf(recline,"ICMP from port:%d, src:, dst:, type:\n", proxy_port);
 			/*send to tunnel*/
 			printf("proxy: send ICMP ECHO reply to tunnel\n");
+			//if(tunnel_write(stage2buf) != 0) {
+			//	fprintf(stderr, "proxy:cannot write to tunnel");
+			//	exit(1);
+			//}
 		}
 		if (rv == 3) {
 			//from tunnel

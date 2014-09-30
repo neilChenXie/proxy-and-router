@@ -33,5 +33,7 @@ unsigned short get_port(struct sockaddr *sa);
 int proxy_udp_reader(char *buffer, int count);
 int router_udp_reader(char *buffer);
 int router_udp_sender(char *sendmsg);
+int router_udp_sender2(char *sendmsg);
 int proxy_udp_sender(int num, char *sendmsg);
 int tunnel_reader(char *buffer);
+int tunnel_write(char *buf);

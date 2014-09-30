@@ -116,13 +116,19 @@ int main(int argc, char *argv[])
 			fclose(routfp);
 			/**************************/
 			/*for stage 2 of router*/
+			while(1) {
+				char buf[MAXBUFLEN];
+				router_udp_reader(buf);
+			}
 			/***********************/
-			exit(0);
+			return 0;
 		}
 		count++;
 	}
 	/*for stage 2 of proxy*/
-	
+	while(1){
+		sleep(100);
+	}
 	/**********************/
 	return 0;
 }
