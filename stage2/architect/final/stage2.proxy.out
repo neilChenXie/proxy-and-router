@@ -1,0 +1,11 @@
+stage1
+proxy port:54952
+router: 1, pid 12907, port: 43876
+ICMP from tunnel, src:10.5.51.2, dst:10.5.51.3, type:8
+ICMP from port:54952, src:10.5.51.3, dst:10.5.51.2, type:0
+ICMP from tunnel, src:10.5.51.2, dst:10.5.51.3, type:8
+ICMP from port:54952, src:10.5.51.3, dst:10.5.51.2, type:0
+ICMP from tunnel, src:10.5.51.2, dst:10.5.51.3, type:8
+ICMP from port:54952, src:10.5.51.3, dst:10.5.51.2, type:0
+ICMP from tunnel, src:10.5.51.2, dst:10.5.51.3, type:8
+ICMP from port:54952, src:10.5.51.3, dst:10.5.51.2, type:0

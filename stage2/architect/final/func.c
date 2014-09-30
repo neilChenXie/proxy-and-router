@@ -395,7 +395,7 @@ int router_udp_sender2(char *sendmsg) {
 		fprintf(stderr, "router:failed to bind socket\n");
 		return -1;
 	}
-	numbytesent = sendto(router_sockfd, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
+	numbytesent = sendto(router_sockfd, sendmsg, MAXBUFLEN-1, 0, res->ai_addr, res->ai_addrlen);
 	if (numbytesent == -1) {
 		perror("router:sendto");
 		exit(1);
@@ -436,7 +436,7 @@ int proxy_udp_sender(int num, char *sendmsg) {
 		break;
 	}
 	/*send infomation*/
-	numbytesent = sendto(sendsocket, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
+	numbytesent = sendto(sendsocket, sendmsg, MAXBUFLEN-1, 0, res->ai_addr, res->ai_addrlen);
 	if (numbytesent == -1) {
 		perror("proxy:sendto");
 		exit(1);
@@ -500,18 +500,6 @@ int tunnel_create() {
  * */
 int tunnel_reader(char *buffer)
 {
-//    char tun_name[IFNAMSIZ];
-    //char buffer[2048];
-
-    /* Connect to the tunnel interface (make sure you create the tunnel interface first) */
-//	strcpy(tun_name, "tun1");
-//	int tun_fd = tun_alloc(tun_name, IFF_TUN | IFF_NO_PI); 
-//
-//	if(tun_fd < 0)
-//	{
-//		perror("Open tunnel interface");
-//		exit(1);
-//	}
 	/******test field for select()***********/
 	int maxfd;
 	int nread;
@@ -522,62 +510,60 @@ int tunnel_reader(char *buffer)
 	//char buf[MAXBUFLEN];
 	char s[INET6_ADDRSTRLEN];
 
-		FD_ZERO(&readfd);//reset a fd_set
-		FD_SET(proxy_sockfd, &readfd);
-		FD_SET(tun_fd, &readfd);
+	FD_ZERO(&readfd);//reset a fd_set
+	FD_SET(proxy_sockfd, &readfd);
+	FD_SET(tun_fd, &readfd);
 
-		//timeout.tv_sec = 1;//timeout
-		//timeout.tv_usec = 0;
-		if(proxy_sockfd > tun_fd) {
-			maxfd = proxy_sockfd;
+	//timeout.tv_sec = 1;//timeout
+	//timeout.tv_usec = 0;
+	if(proxy_sockfd > tun_fd) {
+		maxfd = proxy_sockfd;
+	} else {
+		maxfd = tun_fd;
+	}
+
+	/*proxy wait from tunnel or router*/
+	printf("\nproxy: wait for traffic\n");
+	select(maxfd+1, &readfd, NULL, NULL, NULL);//never timeout
+
+	if(FD_ISSET(proxy_sockfd, &readfd)) {
+		/*read from udp socket*/
+		nread = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+
+		if(nread != -1) {
+			printf("proxy: got packet from %s\n",
+					inet_ntop(their_addr.ss_family,
+						get_in_addr((struct sockaddr *)&their_addr),
+						s, sizeof s));
+			printf("proxy: packet is %d bytes long\n", nread);
+			buffer[nread] = '\0';
 		} else {
-			maxfd = tun_fd;
+			printf("proxy:cannot get msg from router");
 		}
-
-		/*proxy wait from tunnel or router*/
-		printf("\nproxy: wait for traffic\n");
-		select(maxfd+1, &readfd, NULL, NULL, NULL);//never timeout
-
-		if(FD_ISSET(proxy_sockfd, &readfd)) {
-			/*read from udp socket*/
-			nread = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
-
-			if(nread != -1) {
-				printf("proxy: got packet from %s\n",
-						inet_ntop(their_addr.ss_family,
-							get_in_addr((struct sockaddr *)&their_addr),
-							s, sizeof s));
-				printf("proxy: packet is %d bytes long\n", nread);
-				buffer[nread] = '\n';
-				buffer[nread+1] = '\0';
-			} else {
-				printf("proxy:cannot get msg from router");
-			}
-			return 2;
-		} 
-		if(FD_ISSET(tun_fd, &readfd)) {
-			/*read from tunnel*/
-			int nread = read(tun_fd,buffer,100*sizeof(buffer));
-			if(nread < 0) 
-			{
-				perror("Reading from tunnel interface");
-				close(tun_fd);
-				exit(1);
-			}
-			else
-			{
-				printf("Read a packet from tunnel, packet length:%d\n", nread);
-				buffer[nread] = '\n';
-				buffer[nread+1] = '\0';
-				return 3;
-			}
+		return 2;
+	} 
+	if(FD_ISSET(tun_fd, &readfd)) {
+		/*read from tunnel*/
+		int nread = read(tun_fd,buffer,100*sizeof(buffer));
+		if(nread < 0) 
+		{
+			perror("Reading from tunnel interface");
+			close(tun_fd);
+			exit(1);
 		}
+		else
+		{
+			printf("Read a packet from tunnel, packet length:%d\n", nread);
+			buffer[nread] = '\0';
+			return 3;
+		}
+	}
 	/***************************************/
 	return 0;
 }
 /*write to tunnel*/
 int tunnel_write(char *buf) {
-	int nread = write(tun_fd,buf,sizeof(buf));
+	int nread = write(tun_fd,buf,MAXBUFLEN);
 	if (nread == -1) {
 		perror("cannot write to tunnel\n");
 		close(tun_fd);
