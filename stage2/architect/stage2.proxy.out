@@ -1,4 +1,7 @@
 stage1
-proxy port:56425
-router: 1, pid 5438, port: 47042
-543854385438EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE123123123123123123EEEEEEEEEEEEEE
+proxy port:43261
+router: 1, pid 11879, port: 37417
+ICMP from tunnel, src:, dst:, type:
+ICMP from port:43261, src:, dst:, type:
+ICMP from tunnel, src:, dst:, type:
+ICMP from tunnel, src:, dst:, type:

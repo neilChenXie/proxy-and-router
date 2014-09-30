@@ -100,15 +100,16 @@ int read_config(FILE *fp) {
  * */
 int write_file(char *filename, char *buffer) {
 	FILE *fp;
-	if((fp = fopen(filename, "r+"))==NULL) {
+	if((fp = fopen(filename, "a+"))==NULL) {
 		fprintf(stderr,"Cannot open proxy log file\n");
 		exit(1);
 	} else {
-		if(fseek(fp, 0L, SEEK_END) == -1) {
-			printf("fseek doesn\'t work");
-		}
+		//if(fseek(fp, 0L, SEEK_END) == -1) {
+		//	printf("fseek doesn\'t work");
+		//}
 		fputs(buffer, fp);
 		fclose(fp);
+		fp = NULL;
 	}
 	return 0;
 }
@@ -128,10 +129,10 @@ void *get_in_addr(struct sockaddr *sa)
 /*get port num*/
 unsigned short get_port(struct sockaddr *sa) 
 {
-	if(sa->sa_family == AF_INET) {
+	//if(sa->sa_family == AF_INET) {
 		return ntohs(((struct sockaddr_in*)sa)->sin_port);
-	}
-	return ntohs(((struct sockaddr_in6*)sa)->sin6_port);
+	//}
+	//return ntohs(((struct sockaddr_in6*)sa)->sin6_port);
 }
 /*****************************************************************/
 
@@ -287,7 +288,8 @@ int router_udp_reader(char *buffer) {
 	int numbytes;
 	struct sockaddr_storage their_addr;
 	socklen_t addr_len;
-	char s[INET6_ADDRSTRLEN];
+	char src[INET6_ADDRSTRLEN];
+	//char dst[INET6_ADDRSTRLEN];
 	
 	printf("\nrouter: waiting to recvfrom....\n");
 
@@ -296,10 +298,10 @@ int router_udp_reader(char *buffer) {
 	numbytes = recvfrom(router_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
 	
 	if(numbytes != -1) {
-		printf("router: got packet from %s\n",
-				inet_ntop(their_addr.ss_family,
+		inet_ntop(their_addr.ss_family,
 					get_in_addr((struct sockaddr *)&their_addr),
-					s, sizeof s));
+					src, sizeof src);
+		printf("router: got packet from %s\n", src);
 		printf("router: packet is %d bytes long\n", numbytes);
 		buffer[numbytes] = '\0';
 	}
@@ -312,10 +314,10 @@ int router_udp_reader(char *buffer) {
 /*router UDP sender*/
 int router_udp_sender(char *sendmsg) {
 	struct addrinfo hints, *servinfo, *res;
-	//struct sockaddr res_addr;
+	struct sockaddr res_addr;
 	//struct sockaddr_in *res_out_addr;
-	//socklen_t addrlen;
-	int sendsocket;
+	socklen_t addrlen;
+	//int sendsocket;
 	int numbytesent;
 	int rv;
 	/*change int portnum to char*/
@@ -335,8 +337,9 @@ int router_udp_sender(char *sendmsg) {
 	}
 	/*create send socket*/
 	for (res = servinfo; res != NULL; res = res->ai_next) {
-		sendsocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (sendsocket == -1) {
+		//sendsocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		router_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (router_sockfd == -1) {
 			perror("router:sendsocket");
 			continue;
 		}
@@ -345,12 +348,19 @@ int router_udp_sender(char *sendmsg) {
 	if (res == NULL) {
 		fprintf(stderr, "router:failed to bind socket\n");
 	}
+	//res_out_addr = (struct sockaddr_in*)&res_addr;
+	//router_port = ntohs(res_out_addr->sin_port);
 	/*send infomation*/
-	numbytesent = sendto(sendsocket, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
+	numbytesent = sendto(router_sockfd, sendmsg, strlen(sendmsg), 0, res->ai_addr, res->ai_addrlen);
 	if (numbytesent == -1) {
 		perror("router:sendto");
 		exit(1);
 	}
+	if((getsockname(router_sockfd, &res_addr, &addrlen)) == -1) {
+		close(router_sockfd);
+		perror("router:getsockname");
+	}
+	router_port = get_port(&res_addr);
 	freeaddrinfo(servinfo);
 	return 0;
 }
@@ -467,104 +477,63 @@ int tunnel_reader(char *buffer)
 	int maxfd;
 	int nread;
 	fd_set readfd;
-	struct timeval timeout;
+	//struct timeval timeout;
 	struct sockaddr_storage their_addr;
 	socklen_t addr_len;
 	//char buf[MAXBUFLEN];
 	char s[INET6_ADDRSTRLEN];
 
-	FD_ZERO(&readfd);//reset a fd_set
-	FD_SET(proxy_sockfd, &readfd);
-	FD_SET(tun_fd, &readfd);
+	do {
+		FD_ZERO(&readfd);//reset a fd_set
+		FD_SET(proxy_sockfd, &readfd);
+		FD_SET(tun_fd, &readfd);
 
-	timeout.tv_sec = 1;//timeout
-	timeout.tv_usec = 0;
-	if(proxy_sockfd > tun_fd) {
-		maxfd = proxy_sockfd;
-	} else {
-		maxfd = tun_fd;
-	}
-
-	select(maxfd+1, &readfd, NULL, NULL, &timeout);
-
-	if(FD_ISSET(proxy_sockfd, &readfd)) {
-		/*read from udp socket*/
-		nread = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
-
-		if(nread != -1) {
-			printf("proxy: got packet from %s\n",
-					inet_ntop(their_addr.ss_family,
-						get_in_addr((struct sockaddr *)&their_addr),
-						s, sizeof s));
-			printf("proxy: packet is %d bytes long\n", nread);
-			buffer[nread] = '\0';
+		//timeout.tv_sec = 1;//timeout
+		//timeout.tv_usec = 0;
+		if(proxy_sockfd > tun_fd) {
+			maxfd = proxy_sockfd;
+		} else {
+			maxfd = tun_fd;
 		}
-	} 
-	if(FD_ISSET(tun_fd, &readfd)) {
-		/*read from tunnel*/
-		int nread = read(tun_fd,buffer,sizeof(buffer));
-		if(nread < 0) 
-		{
-			perror("Reading from tunnel interface");
-			close(tun_fd);
-			exit(1);
-		}
-		else
-		{
-			printf("Read a packet from tunnel, packet length:%d\n", nread);
-			buffer[nread] = '\0';
-		}
-	}
 
+		/*proxy wait from tunnel or router*/
+		printf("\nproxy: wait for traffic\n");
+		select(maxfd+1, &readfd, NULL, NULL, NULL);//never timeout
+		printf("proxy:here\n");
+
+		if(FD_ISSET(proxy_sockfd, &readfd)) {
+			/*read from udp socket*/
+			nread = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+
+			if(nread != -1) {
+				printf("proxy: got packet from %s\n",
+						inet_ntop(their_addr.ss_family,
+							get_in_addr((struct sockaddr *)&their_addr),
+							s, sizeof s));
+				printf("proxy: packet is %d bytes long\n", nread);
+				buffer[nread] = '\n';
+				buffer[nread+1] = '\0';
+				return 2;
+			}
+		} 
+		if(FD_ISSET(tun_fd, &readfd)) {
+			/*read from tunnel*/
+			int nread = read(tun_fd,buffer,sizeof(buffer));
+			if(nread < 0) 
+			{
+				perror("Reading from tunnel interface");
+				close(tun_fd);
+				exit(1);
+			}
+			else
+			{
+				printf("Read a packet from tunnel, packet length:%d\n", nread);
+				buffer[nread] = '\n';
+				buffer[nread+1] = '\0';
+				return 3;
+			}
+		}
+	}while(1);
 	/***************************************/
-    /*
-     * This loop reads packets from the tunnle interface.
-     *
-     * You will need to REWRITE this loop into a select loop,
-     * so that it can talk both to the tun interface,
-     * AND to the router.
-     *
-     * You will also probably want to do other setup in the
-     * main() routine.
-     */
-//    while(1) 
-//    {
-//	/* Now read data coming from the tunnel */
-//        int nread = read(tun_fd,buffer,sizeof(buffer));
-//	if(nread < 0) 
-//	{
-//	    perror("Reading from tunnel interface");
-//	    close(tun_fd);
-//	    exit(1);
-//	}
-//	else
-//	{
-//	    printf("Read a packet from tunnel, packet length:%d\n", nread);
-//	    /* Do whatever with the data, function to manipulate the data here */
-//
-//	    /*
-//	     * For project A, you will need to add code to forward received packet 
-//	     * to router via UDP socket.
-//	     * And when you get icmp echo reply packet from router, you need to write
-//	     * it back to the tunnel interface
-//	     */
-//	    
-////	}
-//    }
-//	int numbytes;
-//	struct sockaddr_storage their_addr;
-//	socklen_t addr_len;
-//	//char buf[MAXBUFLEN];
-//	char s[INET6_ADDRSTRLEN];
-//	numbytes = recvfrom(proxy_sockfd, buffer, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
-//
-//	if(numbytes != -1) {
-//		printf("proxy: got packet from %s\n",
-//				inet_ntop(their_addr.ss_family,
-//					get_in_addr((struct sockaddr *)&their_addr),
-//					s, sizeof s));
-//		printf("proxy: packet is %d bytes long\n", numbytes);
-//		buffer[numbytes] = '\0';
-//	}
 	return 0;
 }
